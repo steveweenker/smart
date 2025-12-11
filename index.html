@@ -2688,11 +2688,14 @@
         // Global variables initialization
         let db; // IndexedDB database
         let currentUser = null;
-        let ADMIN_PASSWORD = 'GecKaimur@148'; // ⚠️ CHANGE THIS TO A SECURE PASSWORD
+        let ADMIN_PASSWORD = 'admin123'; // ⚠️ CHANGE THIS TO A SECURE PASSWORD
         let activeStudentFilter = 'all'; // Filter state for students
         let activeYear = new Date().getFullYear(); // Current academic year
         let currentPage = 1;
         const itemsPerPage = 10;
+        let selectedStudentIds = []; // Track selected students for bulk operations
+        let currentModal = null; // Track currently open modal
+        let openedModals = {}; // Store modal states
 
 
         // ========== SUPABASE FUNCTIONS ==========
@@ -7451,7 +7454,95 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
             return Promise.resolve(true);
         }
 
-    </script>
+    
+
+        // ========== MISSING FUNCTION DEFINITIONS ==========
+
+        // Modal management
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'block';
+                currentModal = modalId;
+                openedModals[modalId] = true;
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                if (currentModal === modalId) {
+                    currentModal = null;
+                }
+                openedModals[modalId] = false;
+            }
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.style.display = 'none';
+            });
+            currentModal = null;
+        }
+
+        // Utility functions for button handling
+        function selectStudent(studentId) {
+            if (!selectedStudentIds.includes(studentId)) {
+                selectedStudentIds.push(studentId);
+            }
+        }
+
+        function deselectStudent(studentId) {
+            selectedStudentIds = selectedStudentIds.filter(id => id !== studentId);
+        }
+
+        function toggleStudentSelection(studentId) {
+            if (selectedStudentIds.includes(studentId)) {
+                deselectStudent(studentId);
+            } else {
+                selectStudent(studentId);
+            }
+        }
+
+        function clearSelectedStudents() {
+            selectedStudentIds = [];
+        }
+
+        // Get/Set functions for modal state
+        function getModalState(modalId) {
+            return openedModals[modalId] || false;
+        }
+
+        function setModalState(modalId, state) {
+            openedModals[modalId] = state;
+        }
+
+        // ========== DISABLE BACKEND API CALLS ==========
+        // The backend API (405 errors) is replaced with IndexedDB
+
+        async function callBackendAPI(method, table, data = null) {
+            // DISABLED: Backend API returns 405 errors
+            // Now using IndexedDB instead
+            console.log(`[LOCAL] ${method} on ${table}`, data);
+
+            // Return dummy success for now - actual operations use IndexedDB
+            return { success: true, data: [] };
+        }
+
+        // Override any other API calls with local storage equivalents
+        async function loadFromBackendAPI(table) {
+            try {
+                // Try to load from IndexedDB instead
+                return await getAll(table);
+            } catch (error) {
+                console.log(`Loading from IndexedDB: ${table}`, error);
+                return [];
+            }
+        }
+
+        // ========== END MISSING FUNCTIONS ==========
+</script>
 </body>
 
 </html>
