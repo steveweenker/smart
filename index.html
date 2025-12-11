@@ -2685,7 +2685,7 @@
 
 
         
-        // ========== COMPLETE CONFIGURATION ==========
+        // ========== ULTIMATE CONFIGURATION ==========
 
         // Global database reference
         let db = null;
@@ -2698,6 +2698,7 @@
         let activeStudentFilter = 'all';
         let activeYear = new Date().getFullYear();
         let activeMonthFilter = null;
+        let activeTeacherFilter = null;
 
         // Pagination
         let currentPage = 1;
@@ -2708,17 +2709,34 @@
         let currentModal = null;
         let openedModals = {};
 
-        // Data arrays (CRITICAL - these were null/undefined)
-        let allStudents = [];           // ← MUST be array, not null
-        let allFaculty = [];            // ← MUST be array, not null
-        let allClasses = [];            // ← MUST be array, not null
-        let allAttendance = [];         // ← MUST be array, not null
+        // Data arrays (MUST be initialized as arrays)
+        let allStudents = [];           // Student records
+        let allFaculty = [];            // Faculty records
+        let allClasses = [];            // Class records
+        let allAttendance = [];         // Attendance records
 
-        // Other states
-        let branchTeach = 'CSE';        // ← This was undefined
+        // UI State variables
+        let branchTeach = 'CSE';        // Current branch
         let showToast_enabled = true;
 
-        // ========== END CONFIGURATION ==========
+        // Branch mapping for auto-fill
+        let branchMap = {
+            'CSE': 'Computer Science & Engineering',
+            'CSE(Cyber Security)': 'CSE - Cyber Security',
+            'CSE(Networks)': 'CSE - Networks',
+            'IT': 'Information Technology',
+            'ECE': 'Electronics & Communication',
+            'ME': 'Mechanical Engineering',
+            'CE': 'Civil Engineering',
+            'EEE': 'Electrical & Electronics',
+            'BT': 'Biotechnology',
+            'EE': 'Electrical Engineering'
+        };
+
+        // Auto-increment ID counter for records
+        let recordIdCounter = 1;
+
+        // ========== END ULTIMATE CONFIGURATION ==========
 
 
         // ========== SUPABASE FUNCTIONS ==========
@@ -7479,46 +7497,53 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
 
     
 
-        // ========== UTILITY FUNCTIONS (ADDED) ==========
+        // ========== UTILITY & HELPER FUNCTIONS ==========
 
-        // Toast/Notification Function (CRITICAL - was missing)
+        // Generate unique ID for records
+        function generateUniqueID() {
+            recordIdCounter++;
+            return recordIdCounter;
+        }
+
+        // Toast/Notification Function
         function showToast(message, type = 'info') {
             console.log(`[${type.toUpperCase()}] ${message}`);
 
-            // Create toast element if it doesn't exist
-            let toastContainer = document.getElementById('toastContainer');
-            if (!toastContainer) {
-                toastContainer = document.createElement('div');
-                toastContainer.id = 'toastContainer';
-                toastContainer.style.cssText = 'position:fixed; top:20px; right:20px; z-index:9999;';
-                document.body.appendChild(toastContainer);
+            try {
+                let toastContainer = document.getElementById('toastContainer');
+                if (!toastContainer) {
+                    toastContainer = document.createElement('div');
+                    toastContainer.id = 'toastContainer';
+                    toastContainer.style.cssText = 'position:fixed; top:20px; right:20px; z-index:9999;';
+                    document.body.appendChild(toastContainer);
+                }
+
+                const toast = document.createElement('div');
+                toast.style.cssText = `
+                    padding: 15px 20px;
+                    margin-bottom: 10px;
+                    border-radius: 8px;
+                    color: white;
+                    font-weight: 500;
+                    animation: slideIn 0.3s ease;
+                    background-color: ${
+                        type === 'success' ? '#27ae60' :
+                        type === 'error' ? '#e74c3c' :
+                        type === 'warning' ? '#f39c12' :
+                        '#3498db'
+                    };
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                `;
+                toast.textContent = message;
+                toastContainer.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.style.animation = 'slideOut 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            } catch (error) {
+                console.log(`[Toast Error] ${error.message}`);
             }
-
-            // Create toast message
-            const toast = document.createElement('div');
-            toast.style.cssText = `
-                padding: 15px 20px;
-                margin-bottom: 10px;
-                border-radius: 8px;
-                color: white;
-                font-weight: 500;
-                animation: slideIn 0.3s ease;
-                background-color: ${
-                    type === 'success' ? '#27ae60' :
-                    type === 'error' ? '#e74c3c' :
-                    type === 'warning' ? '#f39c12' :
-                    '#3498db'
-                };
-                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            `;
-            toast.textContent = message;
-            toastContainer.appendChild(toast);
-
-            // Auto-remove after 3 seconds
-            setTimeout(() => {
-                toast.style.animation = 'slideOut 0.3s ease';
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
         }
 
         // Modal Management Functions
@@ -7528,6 +7553,8 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
                 modal.style.display = 'block';
                 currentModal = modalId;
                 openedModals[modalId] = true;
+            } else {
+                console.warn(`Modal not found: ${modalId}`);
             }
         }
 
@@ -7570,41 +7597,105 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
             selectedStudentIds = [];
         }
 
-        // IndexedDB Initialization (CRITICAL)
+        // Date Range Toggle (CRITICAL FIX)
+        function toggleDateRange(button) {
+            if (button) {
+                button.classList.toggle('active');
+
+                // Get the associated date range inputs
+                const dateRangeStart = button.parentElement?.querySelector('[data-date-start]');
+                const dateRangeEnd = button.parentElement?.querySelector('[data-date-end]');
+
+                if (dateRangeStart && dateRangeEnd) {
+                    const isActive = button.classList.contains('active');
+                    dateRangeStart.disabled = !isActive;
+                    dateRangeEnd.disabled = !isActive;
+                }
+            }
+        }
+
+        // Branch auto-fill function (CRITICAL FIX)
+        function autoFillStudentDetails(branchCode) {
+            try {
+                const branchName = branchMap[branchCode] || branchCode;
+
+                // Set the branch field if it exists
+                const branchField = document.querySelector('[name="branch"]');
+                if (branchField) {
+                    branchField.value = branchName;
+                }
+
+                return branchName;
+            } catch (error) {
+                console.error('Error in autoFillStudentDetails:', error);
+                return branchCode;
+            }
+        }
+
+        // IndexedDB Initialization
         function initializeDatabase() {
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open('AttendanceDB', 1);
+                try {
+                    const request = indexedDB.open('AttendanceDB', 1);
 
-                request.onerror = () => {
-                    console.error('Database failed to open');
-                    reject('Database open failed');
-                };
+                    request.onerror = () => {
+                        console.error('Database failed to open');
+                        reject('Database open failed');
+                    };
 
-                request.onsuccess = () => {
-                    db = request.result;
-                    console.log('Database opened successfully');
+                    request.onsuccess = () => {
+                        db = request.result;
+                        console.log('Database opened successfully');
+                        resolve(db);
+                    };
 
-                    // Initialize empty arrays for all stores
-                    allStudents = [];
-                    allFaculty = [];
-                    allClasses = [];
-                    allAttendance = [];
+                    request.onupgradeneeded = (e) => {
+                        db = e.target.result;
 
-                    resolve(db);
-                };
-
-                request.onupgradeneeded = (e) => {
-                    db = e.target.result;
-
-                    // Create object stores if they don't exist
-                    const stores = ['students', 'faculty', 'classes', 'attendance', 'years'];
-                    stores.forEach(store => {
-                        if (!db.objectStoreNames.contains(store)) {
-                            db.createObjectStore(store, { keyPath: 'id' });
-                        }
-                    });
-                };
+                        const stores = ['students', 'faculty', 'classes', 'attendance', 'years'];
+                        stores.forEach(store => {
+                            if (!db.objectStoreNames.contains(store)) {
+                                db.createObjectStore(store, { keyPath: 'id' });
+                                console.log(`Created store: ${store}`);
+                            }
+                        });
+                    };
+                } catch (error) {
+                    console.error('Database initialization error:', error);
+                    reject(error);
+                }
             });
+        }
+
+        // CSV conversion function (CRITICAL FIX - Convert arrays to objects with ID)
+        function convertCSVRowToObject(row, index) {
+            try {
+                // Generate unique ID
+                const id = generateUniqueID();
+
+                // Map CSV columns to object properties
+                const record = {
+                    id: id,  // ← CRITICAL: Must have ID field!
+                    rollNo: String(row[0] || '').trim(),
+                    firstName: String(row[1] || '').trim(),
+                    lastName: String(row[2] || '').trim(),
+                    email: String(row[3] || '').trim(),
+                    branch: String(row[4] || '').trim(),
+                    year: parseInt(row[5]) || 1,
+                    semester: parseInt(row[6]) || 1,
+                    dateAdded: row[7] ? new Date(row[7]) : new Date(),
+                    phone: String(row[8] || '').trim(),
+                    address: String(row[9] || '').trim(),
+                    guardianName: String(row[10] || '').trim(),
+                    guardianPhone: String(row[11] || '').trim(),
+                    status: 'active'
+                };
+
+                return record;
+            } catch (error) {
+                console.error('Error converting CSV row:', error, row);
+                return null;
+            }
         }
 
         // Data Loading Functions
@@ -7643,6 +7734,13 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
                 if (!db) {
                     console.log('[LOCAL] DB not initialized, cannot add record');
                     resolve(record);
+                    return;
+                }
+
+                // Validate record has ID (CRITICAL!)
+                if (!record.id) {
+                    console.error(`Record missing ID field for ${storeName}:`, record);
+                    reject(new Error(`Record must have 'id' field`));
                     return;
                 }
 
@@ -7688,6 +7786,26 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
             });
         }
 
+        async function deleteRecord(storeName, id) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    resolve();
+                    return;
+                }
+
+                try {
+                    const transaction = db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.delete(id);
+
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
         // Load all data into memory
         async function loadAllData() {
             try {
@@ -7700,7 +7818,6 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
                 return true;
             } catch (error) {
                 console.error('Error loading data:', error);
-                // Initialize as empty arrays even if loading fails
                 allStudents = [];
                 allFaculty = [];
                 allClasses = [];
@@ -7724,7 +7841,6 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
                 console.log('System initialized successfully');
             } catch (error) {
                 console.error('Initialization error:', error);
-                // Continue anyway - will use empty arrays
             }
         });
 
