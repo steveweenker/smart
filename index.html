@@ -2684,7 +2684,15 @@
         }
 
 
-        // ========== CONFIGURATION ==========
+        
+        // Global variables initialization
+        let db; // IndexedDB database
+        let currentUser = null;
+        let ADMIN_PASSWORD = 'GecKaimur@148'; // ⚠️ CHANGE THIS TO A SECURE PASSWORD
+        let activeStudentFilter = 'all'; // Filter state for students
+        let activeYear = new Date().getFullYear(); // Current academic year
+        let currentPage = 1;
+        const itemsPerPage = 10;
 
 
         // ========== SUPABASE FUNCTIONS ==========
