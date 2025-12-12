@@ -7425,22 +7425,35 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
             }
         }
 
-        async function addRecord(table, data) {
-            try {
-                if (!data.created_at) data.created_at = new Date().toISOString();
+        async function addRecord(storeName, record) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    console.log('[LOCAL] DB not initialized, cannot add record');
+                    resolve(record);
+                    return;
+                }
 
-                const { id, ...payload } = data;       // split id from rest
-                const result = await callBackendAPI('ADD', table, payload, id ?? null);
+                try {
+                    const transaction = db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.add(record);
 
-                if (typeof showToast === 'function')
-                    showToast(`Added to ${table} successfully`, 'success');
+                    request.onerror = () => {
+                        console.error(`Error adding to ${storeName}:`, request.error);
+                        reject(request.error);
+                    };
 
-                return result;
-            } catch (error) {
-                console.error(`Error adding to ${table}:`, error);
-                throw error;
-            }
+                    request.onsuccess = () => {
+                        console.log(`Added to ${storeName}:`, record);
+                        resolve(record);
+                    };
+                } catch (error) {
+                    console.error(`Error in addRecord(${storeName})`, error);
+                    reject(error);
+                }
+            });
         }
+
 
 
         async function updateRecord(table, data) {
