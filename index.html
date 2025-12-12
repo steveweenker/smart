@@ -4069,9 +4069,8 @@
                             record.id = existing.id;
                             promises.push(updateRecord('attendance', record));
                         } else {
-                            // NEW row – do NOT set id, let Supabase create it
-                            // and do NOT force any id check inside addRecord
-                            promises.push(addRecord('attendance', record));  // record has no id here
+                            // new attendance: no id yet
+                            promises.push(addRecord('attendance', { ...record, id: null }));
                         }
 
                     });
@@ -7429,14 +7428,20 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
         async function addRecord(table, data) {
             try {
                 if (!data.created_at) data.created_at = new Date().toISOString();
-                const result = await callBackendAPI('ADD', table, data);
-                if (typeof showToast === 'function') showToast(`Added to ${table} successfully!`, 'success');
+
+                const { id, ...payload } = data;       // split id from rest
+                const result = await callBackendAPI('ADD', table, payload, id ?? null);
+
+                if (typeof showToast === 'function')
+                    showToast(`Added to ${table} successfully`, 'success');
+
                 return result;
             } catch (error) {
                 console.error(`Error adding to ${table}:`, error);
                 throw error;
             }
         }
+
 
         async function updateRecord(table, data) {
             try {
