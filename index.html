@@ -7393,66 +7393,94 @@ To import: Use the "Complete Database Import" feature in the Bulk Import tab.`);
  * @param {object|null} data
  * @param {number|null} id
  */
-        async function callBackendAPI(action, table, data = null, id = null) {
+        // ------------------------------------------------------------
+        // UNIVERSAL BACKEND API CALL WRAPPER
+        // ------------------------------------------------------------
+        async function callBackendAPI(action, table, data = null) {
             try {
+
+                // Build request body
                 const requestBody = { action, table };
                 if (data !== null) requestBody.data = data;
-                if (id !== null) requestBody.id = id;
 
-                console.log(`[API CALL] ${action} ${table}`, requestBody);
+                console.log(`[API CALL] ${action} → ${table}`, requestBody);
 
+                // Send the request
                 const response = await fetch('/api/db', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
                 });
 
+                // Handle HTTP-level errors
                 if (!response.ok) {
-                    // try to parse JSON error body if present
                     let errorData = null;
-                    try { errorData = await response.json(); } catch (e) { }
+
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        // malformed or empty JSON error response
+                    }
+
                     console.error(`API Error (${response.status}):`, errorData || response.statusText);
-                    throw new Error((errorData && errorData.error) || `API Error: ${response.status}`);
+                    throw new Error(
+                        (errorData && errorData.error) ||
+                        `API Error: ${response.status}`
+                    );
                 }
 
+                // Parse success result
                 const result = await response.json();
-                console.log(`[API SUCCESS] ${action} completed`, result);
+                console.log(`[API SUCCESS] ${action} → ${table}`, result);
+
                 return result.data ?? result;
+
             } catch (error) {
-                console.error(`[API FAILED] ${action} on ${table}:`, error);
-                if (typeof showToast === 'function') showToast(`Error: ${error.message}`, 'error');
+                console.error(`[API FAILED] ${action} → ${table}`, error);
+                if (typeof showToast === 'function') {
+                    showToast(`Error: ${error.message}`, 'error');
+                }
                 throw error;
             }
         }
 
-        async function addRecord(storeName, record) {
-            return new Promise((resolve, reject) => {
-                if (!db) {
-                    console.log('[LOCAL] DB not initialized, cannot add record');
-                    resolve(record);
-                    return;
-                }
 
-                try {
-                    const transaction = db.transaction([storeName], 'readwrite');
-                    const store = transaction.objectStore(storeName);
-                    const request = store.add(record);
+        // ------------------------------------------------------------
+        // SAFEST ADD RECORD FUNCTION — AUTO GENERATES ID ALWAYS
+        // ------------------------------------------------------------
+        async function addRecord(table, data) {
 
-                    request.onerror = () => {
-                        console.error(`Error adding to ${storeName}:`, request.error);
-                        reject(request.error);
-                    };
+            function generateId() {
+                // preferred: real UUID (modern browsers)
+                if (crypto.randomUUID) return crypto.randomUUID();
 
-                    request.onsuccess = () => {
-                        console.log(`Added to ${storeName}:`, record);
-                        resolve(record);
-                    };
-                } catch (error) {
-                    console.error(`Error in addRecord(${storeName})`, error);
-                    reject(error);
-                }
-            });
+                // fallback: unique random string
+                return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            }
+
+            let payload;
+
+            // --------------------------------------------
+            // CASE 1: data is a single object
+            // --------------------------------------------
+            if (!Array.isArray(data)) {
+                if (!data.id) data.id = generateId();
+                payload = data;
+
+                // --------------------------------------------
+                // CASE 2: data is an array of objects
+                // --------------------------------------------
+            } else {
+                payload = data.map(item => ({
+                    id: item.id ?? generateId(),
+                    ...item
+                }));
+            }
+
+            // Send to backend (your API handler)
+            return await callBackendAPI("ADD", table, payload, null);
         }
+
 
 
 
